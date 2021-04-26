@@ -1,11 +1,20 @@
 import { FC } from 'react';
+import { GetStaticProps } from 'next';
 
 import Head from 'next/head';
 
 import styles from '../styles/pages/home.module.scss';
 import SubscribeButton from '../components/SubscribeButton';
+import stripe from '../services/stripe';
 
-const Home: FC = () => {
+interface HomeProps {
+  product: {
+    priceId: string;
+    amount: string;
+  };
+}
+
+const Home: FC<HomeProps> = ({ product }) => {
   return (
     <>
       <Head>
@@ -27,16 +36,39 @@ const Home: FC = () => {
           <p>
             Get acess to all the publications
             <br />
-            <span>for $9.90 month</span>
+            <span>for {product.amount} month</span>
           </p>
 
-          <SubscribeButton />
+          <SubscribeButton priceId={product.priceId} />
         </section>
 
         <img src="/images/avatar.svg" alt="Girl coding" />
       </main>
     </>
   );
+};
+
+export const getStaticProps: GetStaticProps<HomeProps> = async () => {
+  // retrieve é somente 1, onde ele busca pelo id do preço
+
+  const price = await stripe.prices.retrieve('price_1IkQgwLE5ETj9Aye1mwRv1zc', {
+    expand: ['product'],
+  });
+
+  const product = {
+    priceId: price.id,
+    amount: new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(price.unit_amount / 100), // preço vem em centavos
+  };
+
+  return {
+    props: {
+      product,
+    },
+    revalidate: 60 * 60 * 24, // 1 day
+  };
 };
 
 export default Home;
