@@ -6,7 +6,11 @@ import StripeLib from 'stripe';
 
 import stripe from '../../../services/stripe';
 
-import { Subscription } from '../_lib/Subscription';
+import {
+  checkoutEvent,
+  createdCustomerEvent,
+  updatedCustomerEvent,
+} from './_events';
 
 async function buffer(readable: Readable) {
   const chunks = [];
@@ -24,7 +28,12 @@ export const config = {
   },
 };
 
-const relevantEvents = new Set(['checkout.session.completed']);
+const isRelevantEvents = new Set([
+  'checkout.session.completed',
+  'customer.subscription.created',
+  'customer.subscription.updated',
+  'customer.subscription.deleted',
+]);
 
 const webhooks = async (
   req: NextApiRequest,
@@ -47,18 +56,9 @@ const webhooks = async (
       return res.status(400).send(`Webhook-error: ${error.message}`);
     }
 
-    const { type } = event;
-
-    if (relevantEvents.has(type)) {
+    if (isRelevantEvents.has(event.type)) {
       try {
-        switch (type) {
-          case 'checkout.session.completed':
-            saveSubscription(event);
-
-            break;
-          default:
-            throw new Error('Unhandled event.');
-        }
+        relevantEvents(event);
       } catch {
         return res.json({ error: 'Webhook handler faild' });
       }
@@ -72,15 +72,19 @@ const webhooks = async (
   return res.status(405).end('Method not allowed');
 };
 
-const saveSubscription = async (event: StripeLib.Event) => {
-  const subscription = new Subscription();
+const callRelevantEvents = {
+  'checkout.session.completed': checkoutEvent,
+  'customer.subscription.created': createdCustomerEvent,
+  'customer.subscription.updated': updatedCustomerEvent,
+  'customer.subscription.deleted': updatedCustomerEvent,
+};
 
-  const checkoutSession = event.data.object as StripeLib.Checkout.Session;
+const relevantEvents = async (event: StripeLib.Event) => {
+  if (callRelevantEvents[event.type]) {
+    return callRelevantEvents[event.type](event);
+  }
 
-  subscription.save({
-    subscriptionID: checkoutSession.subscription.toString(),
-    customerID: checkoutSession.customer.toString(),
-  });
+  throw new Error('Unhandled event.');
 };
 
 export default webhooks;
