@@ -2,8 +2,8 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { getSession } from 'next-auth/client';
 import { query } from 'faunadb';
 
-import fauna from '../../services/fauna';
-import stripe from '../../services/stripe';
+import fauna from '../../../services/fauna';
+import stripe from '../../../services/stripe';
 
 type User = {
   ref: {
@@ -64,9 +64,9 @@ export default async (
       cancel_url: process.env.STRIPE_CANCEL_URL,
     });
 
-    return res.status(200).json({ sessionId: stripeCheckoutSession.id });
+    res.status(200).json({ sessionId: stripeCheckoutSession.id });
+  } else {
+    res.setHeader('Allow', 'POST');
+    res.status(405).end('Method not allowed');
   }
-
-  res.setHeader('Allow', 'POST');
-  return res.status(405).end('Method not allowed');
 };
