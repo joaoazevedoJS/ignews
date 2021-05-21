@@ -16,6 +16,39 @@ export default NextAuth({
     signingKey: process.env.SIGNING_KEY,
   },
   callbacks: {
+    async session(session) {
+      try {
+        const userActiveSubscription = await fauna.query(
+          query.Get(
+            query.Intersection([
+              query.Match(
+                query.Index('SUBSCRIPTION_BY_USER_REF'),
+                query.Select(
+                  'ref',
+                  query.Get(
+                    query.Match(
+                      query.Index('USER_BY_EMAIL'),
+                      query.Casefold(session.user.email),
+                    ),
+                  ),
+                ),
+              ),
+              query.Match(query.Index('SUBSCRIPTION_BY_STATUS'), 'active'),
+            ]),
+          ),
+        );
+
+        return {
+          ...session,
+          activeSubscription: userActiveSubscription,
+        };
+      } catch {
+        return {
+          ...session,
+          activeSubscription: null,
+        };
+      }
+    },
     async signIn(user, account, profile) {
       const { email } = user;
 
